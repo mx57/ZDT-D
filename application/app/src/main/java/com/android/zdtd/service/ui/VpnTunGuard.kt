@@ -9,7 +9,7 @@ import java.net.URLEncoder
 import java.util.Locale
 import kotlin.coroutines.resume
 
-private val vpnTunProgramIds = listOf("openvpn", "tun2socks", "myvpn", "mihomo", "mieru", "amneziawg")
+private val vpnTunProgramIds = listOf("openvpn", "tun2socks", "myvpn", "mihomo", "mieru", "aether", "amneziawg")
 
 private suspend fun awaitLoadJsonVpnTunGuard(actions: ZdtdActions, path: String): JSONObject? =
   suspendCancellableCoroutine { cont -> actions.loadJsonData(path) { cont.resume(it) } }

@@ -11,7 +11,7 @@ use std::{
 use crate::{
     android::{boot, selinux::SelinuxGuard},
     iptables_backup,
-    programs::{amneziawg, byedpi, dnscrypt, dpitunnel, myproxy, myprogram, nfqws, nfqws2, openvpn, operaproxy, tor, tgwsproxy, tun2socks, myvpn, mihomo, mieru},
+    programs::{aether, amneziawg, byedpi, dnscrypt, dpitunnel, myproxy, myprogram, nfqws, nfqws2, openvpn, operaproxy, tor, tgwsproxy, tun2socks, myvpn, mihomo, mieru},
     programs::{singbox, wireproxy, hysteria2},
     stats,
     settings,
@@ -154,6 +154,7 @@ pub fn start_full() -> Result<()> {
         || myvpn::has_enabled_profiles()
         || mihomo::has_profiles_requiring_netd()
         || mieru::has_profiles_requiring_netd()
+        || aether::has_profiles_requiring_netd()
         || singbox::has_enabled_vpn_profiles()
         || hysteria2::has_enabled_vpn_profiles()
         || hotspot_vpn_selection.is_some();
@@ -164,13 +165,14 @@ pub fn start_full() -> Result<()> {
             // eight hand-written match blocks this replaces. Order matters: vpn_netd::start_profiles()
             // consumes the accumulated list, so engines must be started in this exact sequence.
             // The log label and the user-facing Russian text are kept per engine, unchanged.
-            let netd_starters: [(&str, &str, fn() -> Result<Vec<crate::vpn_netd::VpnNetdProfile>>); 8] = [
+            let netd_starters: [(&str, &str, fn() -> Result<Vec<crate::vpn_netd::VpnNetdProfile>>); 9] = [
                 ("openvpn", "OpenVPN: ошибка запуска, запуск продолжен", openvpn::start_profiles_for_netd),
                 ("amneziawg", "AmneziaWG: ошибка запуска, запуск продолжен", amneziawg::start_profiles_for_netd),
                 ("tun2socks", "tun2socks: ошибка запуска, запуск продолжен", tun2socks::start_profiles_for_netd),
                 ("myvpn", "myvpn: ошибка запуска, запуск продолжен", myvpn::start_profiles_for_netd),
                 ("mihomo", "mihomo: ошибка запуска, запуск продолжен", mihomo::start_profiles_for_netd),
                 ("mieru", "mieru: ошибка запуска, запуск продолжен", mieru::start_profiles_for_netd),
+                ("aether", "aether: ошибка запуска, запуск продолжен", aether::start_profiles_for_netd),
                 ("sing-box vpn", "sing-box: ошибка запуска, запуск продолжен", singbox::start_profiles_for_netd),
                 ("hysteria2 vpn", "hysteria2: ошибка запуска, запуск продолжен", hysteria2::start_profiles_for_netd),
             ];
@@ -193,11 +195,12 @@ pub fn start_full() -> Result<()> {
             }
 
             // Same four supported engines as before; the identical error arms are now shared.
-            let vpn_tether_starters: [(&str, fn(&str) -> Result<Option<crate::vpn_tether::VpnTetherProfile>>); 4] = [
+            let vpn_tether_starters: [(&str, fn(&str) -> Result<Option<crate::vpn_tether::VpnTetherProfile>>); 5] = [
                 ("openvpn", openvpn::start_profile_for_hotspot_vpn),
                 ("amneziawg", amneziawg::start_profile_for_hotspot_vpn),
                 ("mihomo", mihomo::start_profile_for_hotspot_vpn),
                 ("mieru", mieru::start_profile_for_hotspot_vpn),
+                ("aether", aether::start_profile_for_hotspot_vpn),
             ];
             let vpn_tether_profile = match hotspot_vpn_selection.as_ref().map(|(p, n)| (p.as_str(), n.as_str())) {
                 Some((program, profile)) => match vpn_tether_starters.iter().find(|(id, _)| *id == program) {
@@ -406,6 +409,7 @@ fn can_adopt_existing_runtime() -> bool {
         || myvpn::has_enabled_profiles()
         || mihomo::has_profiles_requiring_netd()
         || mieru::has_profiles_requiring_netd()
+        || aether::has_profiles_requiring_netd()
         || singbox::has_enabled_vpn_profiles()
         || hysteria2::has_enabled_vpn_profiles();
     if vpn_expected && !crate::vpn_netd::applied_snapshot_path().is_file() {
@@ -466,6 +470,7 @@ fn enabled_runtime_processes_look_complete() -> bool {
     require_profile_program!("tun2socks", r.tun2socks.count);
     require_profile_program!("mihomo", r.mihomo.count);
     require_profile_program!("mieru", r.mieru.count);
+    require_profile_program!("aether", r.aether.count);
 
     if myvpn::has_enabled_profiles() {
         expected_any = true;
@@ -591,6 +596,7 @@ fn actual_runtime_has_services() -> bool {
         || tun2socks::is_running()
         || mihomo::is_running()
         || mieru::is_running()
+        || aether::is_running()
         || hysteria2::is_running()
         || vpn_netd_has_applied_owner("myvpn")
         || vpn_netd_has_applied_owner("hysteria2")
@@ -805,13 +811,14 @@ fn validate_start_plan_best_effort() {
     // NOTE: hysteria2::validate_start_plan() is deliberately NOT listed here. It was not
     // called before this refactor either; the list is kept identical so behavior does not
     // change. Pending maintainer decision on whether that omission is intentional.
-    let start_plans: [(&str, fn() -> Result<()>); 7] = [
+    let start_plans: [(&str, fn() -> Result<()>); 8] = [
         ("openvpn", openvpn::validate_start_plan),
         ("amneziawg", amneziawg::validate_start_plan),
         ("tun2socks", tun2socks::validate_start_plan),
         ("myvpn", myvpn::validate_start_plan),
         ("mihomo", mihomo::validate_start_plan),
         ("mieru", mieru::validate_start_plan),
+        ("aether", aether::validate_start_plan),
         ("sing-box", singbox::validate_start_plan),
     ];
     for (label, validate) in start_plans {
@@ -838,13 +845,14 @@ fn validate_vpn_claims_unique() -> Result<()> {
 fn validate_vpn_tun_claims_unique() -> Result<()> {
     let mut seen = BTreeMap::<String, String>::new();
     // Same eight sources in the same order as the previous .chain() sequence.
-    let tun_claim_sources: [fn() -> Vec<(String, String)>; 8] = [
+    let tun_claim_sources: [fn() -> Vec<(String, String)>; 9] = [
         openvpn::enabled_tun_claims,
         amneziawg::enabled_tun_claims,
         tun2socks::enabled_tun_claims,
         myvpn::enabled_tun_claims,
         mihomo::enabled_tun_claims,
         mieru::enabled_tun_claims,
+        aether::enabled_tun_claims,
         singbox::enabled_tun_claims,
         hysteria2::enabled_tun_claims,
     ];
@@ -860,12 +868,13 @@ fn validate_vpn_tun_claims_unique() -> Result<()> {
 fn validate_vpn_cidr_claims_unique() -> Result<()> {
     // Same seven sources in the same order as the previous .chain() sequence.
     // NOTE: openvpn::enabled_cidr_claims() is intentionally absent, exactly as before.
-    let cidr_claim_sources: [fn() -> Vec<(String, String)>; 7] = [
+    let cidr_claim_sources: [fn() -> Vec<(String, String)>; 8] = [
         amneziawg::enabled_cidr_claims,
         tun2socks::enabled_cidr_claims,
         myvpn::enabled_cidr_claims,
         mihomo::enabled_cidr_claims,
         mieru::enabled_cidr_claims,
+        aether::enabled_cidr_claims,
         singbox::enabled_cidr_claims,
         hysteria2::enabled_cidr_claims,
     ];
@@ -975,6 +984,7 @@ fn any_main_service_running() -> bool {
                 || (myvpn_expected && vpn_netd_has_applied_owner("myvpn"))
                 || (mihomo_expected && mihomo::is_running())
                 || (mieru::has_enabled_profiles() && mieru::is_running())
+                || (aether::has_enabled_profiles() && aether::is_running())
                 || (singbox_vpn_expected && singbox::is_running() && vpn_netd_has_applied_owner("singbox"))
                 || (hysteria2_vpn_expected && hysteria2::is_running() && vpn_netd_has_applied_owner("hysteria2"))
             {

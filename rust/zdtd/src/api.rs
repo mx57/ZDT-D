@@ -2357,6 +2357,44 @@ fn create_mieru_profile_next() -> Result<String> {
     anyhow::bail!("no free mieru profile name")
 }
 
+fn aether_active_path() -> PathBuf { crate::programs::aether::active_path() }
+fn aether_profiles_root() -> PathBuf { crate::programs::aether::profiles_root() }
+fn aether_deleted_root() -> PathBuf { program_root("aether").join(".deleted") }
+fn aether_deleted_profiles_root() -> PathBuf { aether_deleted_root().join("profiles") }
+fn aether_profile_root(profile: &str) -> PathBuf { crate::programs::aether::profile_root(profile) }
+
+fn ensure_aether_profile_layout(profile: &str) -> Result<()> {
+    crate::programs::aether::ensure_profile_layout(profile)
+}
+
+fn create_aether_profile_named(requested: &str) -> Result<String> {
+    let name = requested.trim();
+    crate::programs::aether::ensure_valid_profile_name(name)?;
+    crate::programs::aether::ensure_root_layout()?;
+    let active_path = aether_active_path();
+    let mut active: ProfilesActive = read_json(&active_path).unwrap_or_default();
+    if active.profiles.contains_key(name) { anyhow::bail!("profile already exists"); }
+    active.profiles.insert(name.to_string(), ProfileState { enabled: false });
+    write_json_pretty(&active_path, &active)?;
+    ensure_aether_profile_layout(name)?;
+    crate::programs::aether::assign_free_ports_for_profile(name)?;
+    Ok(name.to_string())
+}
+
+fn create_aether_profile_next() -> Result<String> {
+    crate::programs::aether::ensure_root_layout()?;
+    let active: ProfilesActive = read_json(&aether_active_path()).unwrap_or_default();
+    for n in 1..=9999u32 {
+        let next = format!("profile{n}");
+        if next.len() > 10 { break; }
+        if !active.profiles.contains_key(&next) {
+            create_aether_profile_named(&next)?;
+            return Ok(next);
+        }
+    }
+    anyhow::bail!("no free aether profile name")
+}
+
 fn validate_cross_vpn_tun_claim(program_id: &str, profile: &str, tun: &str) -> Result<()> {
     let this_label = format!("{program_id}/{profile}");
     for (other_label, other_tun) in crate::programs::openvpn::enabled_tun_claims()
@@ -2366,6 +2404,7 @@ fn validate_cross_vpn_tun_claim(program_id: &str, profile: &str, tun: &str) -> R
         .chain(crate::programs::myvpn::enabled_tun_claims().into_iter())
         .chain(crate::programs::mihomo::enabled_tun_claims().into_iter())
         .chain(crate::programs::mieru::enabled_tun_claims().into_iter())
+        .chain(crate::programs::aether::enabled_tun_claims().into_iter())
         .chain(crate::programs::singbox::enabled_tun_claims().into_iter())
         .chain(crate::programs::hysteria2::enabled_tun_claims().into_iter())
     {
@@ -2557,7 +2596,7 @@ fn app_domain(program_id: &str) -> Option<&'static str> {
         // Intentional exceptions are the ZDT-D launch marker and blockedquic: the
         // marker is ignored by package conflict parsing, and blockedquic has no app
         // routing domain so QUIC blocking may coexist with VPN/netd routing.
-        "vpn-netd" | "openvpn" | "amneziawg" | "tun2socks" | "myvpn" | "mihomo" | "mieru" | "sing-box" | "wireguard" => Some("exclusive_network"),
+        "vpn-netd" | "openvpn" | "amneziawg" | "tun2socks" | "myvpn" | "mihomo" | "mieru" | "aether" | "sing-box" | "wireguard" => Some("exclusive_network"),
         "operaproxy" | "wireproxy" | "myproxy" | "myprogram" | "tor" | "dpitunnel" | "byedpi" | "hysteria2" => Some("tunnel"),
         "nfqws" | "nfqws2" => Some("zapret"),
         // blockedquic only conflicts with proxyInfo protection; it must not block VPN/tunnel app lists.
@@ -2673,6 +2712,23 @@ fn collect_assignment_files_uncached() -> Vec<AppAssignmentFile> {
                 "user",
                 path.join("app/uid/user_program"),
                 format!("/api/programs/sing-box/profiles/{profile}/apps/user"),
+            );
+        }
+    }
+
+    let aether_root = aether_profiles_root();
+    if let Ok(rd) = fs::read_dir(&aether_root) {
+        for ent in rd.flatten() {
+            let path = ent.path();
+            if !path.is_dir() { continue; }
+            let Some(profile) = path.file_name().and_then(|s| s.to_str()).map(|s| s.to_string()) else { continue; };
+            push_assignment_file(
+                &mut out,
+                "aether",
+                Some(profile.clone()),
+                "user",
+                path.join("app/uid/user_program"),
+                format!("/api/programs/aether/profiles/{profile}/apps/user"),
             );
         }
     }
@@ -3086,6 +3142,22 @@ fn handle_get_programs(stream: TcpStream) -> Result<()> {
             "id": id,
             "name": program_display_name(id),
             "type": "profiles",
+            "profiles": profiles
+        }));
+    }
+
+    // aether (aether MASQUE/HTTP2/Noise engine + tun2proxy/tun2socks + VPN/netd profiles)
+    {
+        let active: ProfilesActive = read_json(&aether_active_path()).unwrap_or_default();
+        let mut profiles = Vec::new();
+        for (name, st) in active.profiles {
+            profiles.push(json!({"name": name, "enabled": st.enabled}));
+        }
+        profiles.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+        out.push(json!({
+            "id": "aether",
+            "name": "aether",
+            "type": "aether_profiles",
             "profiles": profiles
         }));
     }
@@ -4338,6 +4410,124 @@ fn handle_programs_subroutes(stream: TcpStream, method: &str, path: &str, header
                 write_text_atomic(&p, &req.content)?;
                 invalidate_assignment_cache();
                 refresh_apps_after_save_if_running(services_running, "mihomo", Some(profile), "common")?;
+                Ok(())
+            })();
+            match res { Ok(_) => write_ok(stream), Err(e) => write_err(stream, e) }
+        }
+
+        // --- aether profile API
+        ("GET", ["api", "programs", "aether", "profiles"]) => {
+            let res = (|| -> Result<serde_json::Value> {
+                crate::programs::aether::ensure_root_layout()?;
+                let active: ProfilesActive = read_json(&aether_active_path()).unwrap_or_default();
+                let mut profiles = Vec::new();
+                for (name, st) in active.profiles {
+                    profiles.push(json!({"name": name, "enabled": st.enabled}));
+                }
+                profiles.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+                Ok(json!({"ok": true, "profiles": profiles}))
+            })();
+            match res { Ok(v) => write_json(stream, 200, v), Err(e) => write_err(stream, e) }
+        }
+        ("POST", ["api", "programs", "aether", "profiles"]) => {
+            let res = (|| -> Result<serde_json::Value> {
+                #[derive(Deserialize)]
+                struct Req { #[serde(default)] name: Option<String> }
+                let req: Req = serde_json::from_slice(body)
+                    .map_err(|e| anyhow::anyhow!("bad JSON body: {e}"))?;
+                let profile = match req.name.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    Some(name) => create_aether_profile_named(name)?,
+                    None => create_aether_profile_next()?,
+                };
+                Ok(json!({"ok": true, "profile": profile}))
+            })();
+            match res { Ok(v) => write_json(stream, 200, v), Err(e) => write_err(stream, e) }
+        }
+        ("PUT", ["api", "programs", "aether", "profiles", profile, "enabled"]) => {
+            let res = (|| -> Result<()> {
+                crate::programs::aether::ensure_valid_profile_name(profile)?;
+                let req: EnabledReq = serde_json::from_slice(body).map_err(|e| anyhow::anyhow!("bad JSON body: {e}"))?;
+                let p = aether_active_path();
+                let mut active: ProfilesActive = read_json(&p).unwrap_or_default();
+                if !active.profiles.contains_key(*profile) { anyhow::bail!("profile not found"); }
+                if req.enabled {
+                    crate::programs::aether::validate_enabled_tun_uniqueness_with_override(Some(profile), None, Some(req.enabled))?;
+                    let setting = crate::programs::aether::read_setting(profile).unwrap_or_default();
+                    validate_cross_vpn_tun_claim("aether", profile, &setting.tun)?;
+                    crate::programs::aether::validate_port_uniqueness_with_override(Some(profile), None)?;
+                }
+                active.profiles.insert(profile.to_string(), ProfileState { enabled: req.enabled });
+                write_json_pretty(&p, &active)?;
+                Ok(())
+            })();
+            match res { Ok(_) => write_ok(stream), Err(e) => write_err(stream, e) }
+        }
+        ("DELETE", ["api", "programs", "aether", "profiles", profile]) => {
+            let res = (|| -> Result<()> {
+                crate::programs::aether::ensure_valid_profile_name(profile)?;
+                let p = aether_active_path();
+                let mut active: ProfilesActive = read_json(&p).unwrap_or_default();
+                active.profiles.remove(*profile);
+                write_json_pretty(&p, &active)?;
+                invalidate_assignment_cache();
+                let src = aether_profile_root(profile);
+                if src.exists() {
+                    let deleted_dir = aether_deleted_profiles_root();
+                    fs::create_dir_all(&deleted_dir).ok();
+                    let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+                    let dst = deleted_dir.join(format!("{profile}.{ts}"));
+                    let _ = fs::rename(&src, &dst);
+                }
+                Ok(())
+            })();
+            match res { Ok(_) => write_ok(stream), Err(e) => write_err(stream, e) }
+        }
+        ("GET", ["api", "programs", "aether", "profiles", profile, "setting"]) => {
+            let res = (|| -> Result<serde_json::Value> {
+                crate::programs::aether::ensure_valid_profile_name(profile)?;
+                ensure_aether_profile_layout(profile)?;
+                let p = aether_profile_root(profile).join("setting.json");
+                let v: serde_json::Value = read_json(&p)?;
+                Ok(json!({"ok": true, "data": v}))
+            })();
+            match res { Ok(v) => write_json(stream, 200, v), Err(e) => write_err(stream, e) }
+        }
+        ("PUT", ["api", "programs", "aether", "profiles", profile, "setting"]) => {
+            let res = (|| -> Result<()> {
+                crate::programs::aether::ensure_valid_profile_name(profile)?;
+                ensure_aether_profile_layout(profile)?;
+                let v: serde_json::Value = serde_json::from_slice(body).map_err(|e| anyhow::anyhow!("bad JSON body: {e}"))?;
+                let setting = crate::programs::aether::normalize_setting_value(v)?;
+                crate::programs::aether::validate_enabled_tun_uniqueness_with_override(Some(profile), Some(&setting), None)?;
+                crate::programs::aether::validate_port_uniqueness_with_override(Some(profile), Some(&setting))?;
+                if is_profile_enabled(&aether_active_path(), profile) {
+                    validate_cross_vpn_tun_claim("aether", profile, &setting.tun)?;
+                }
+                crate::programs::aether::write_setting(profile, &setting)?;
+                Ok(())
+            })();
+            match res { Ok(_) => write_ok(stream), Err(e) => write_err(stream, e) }
+        }
+        ("GET", ["api", "programs", "aether", "profiles", profile, "apps", "user"]) => {
+            let res = (|| -> Result<String> {
+                crate::programs::aether::ensure_valid_profile_name(profile)?;
+                ensure_aether_profile_layout(profile)?;
+                let p = aether_profile_root(profile).join("app/uid/user_program");
+                read_text_or_empty(&p)
+            })();
+            match res { Ok(content) => write_json(stream, 200, json!({"ok": true, "content": content})), Err(e) => write_err(stream, e) }
+        }
+        ("PUT", ["api", "programs", "aether", "profiles", profile, "apps", "user"]) => {
+            let res = (|| -> Result<()> {
+                crate::programs::aether::ensure_valid_profile_name(profile)?;
+                ensure_aether_profile_layout(profile)?;
+                let req: ContentReq = serde_json::from_slice(body).map_err(|e| anyhow::anyhow!("bad JSON body: {e}"))?;
+                let api_path = format!("/api/programs/aether/profiles/{}/apps/user", profile);
+                validate_program_apps_content(&req.content, &api_path, "aether", "common")?;
+                let p = aether_profile_root(profile).join("app/uid/user_program");
+                write_text_atomic(&p, &req.content)?;
+                invalidate_assignment_cache();
+                refresh_apps_after_save_if_running(services_running, "aether", Some(profile), "common")?;
                 Ok(())
             })();
             match res { Ok(_) => write_ok(stream), Err(e) => write_err(stream, e) }
@@ -7424,6 +7614,11 @@ match (method.as_str(), path.as_str()) {
                     match req.profile.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
                         Some(p) => create_myprogram_profile_named(p)?,
                         None => create_myprogram_profile_next()?,
+                    }
+                } else if program == "aether" {
+                    match req.profile.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                        Some(p) => create_aether_profile_named(p)?,
+                        None => create_aether_profile_next()?,
                     }
                 } else {
                     match req.profile.as_deref().map(str::trim).filter(|s| !s.is_empty()) {

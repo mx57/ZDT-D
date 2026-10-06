@@ -47,6 +47,7 @@ pub struct StatusReport {
     pub tun2socks: UsageAgg,
     pub mihomo: UsageAgg,
     pub mieru: UsageAgg,
+    pub aether: UsageAgg,
     pub tgwsproxy: UsageAgg,
     pub tun2proxy: UsageAgg, // combined tun2socks/tun2proxy helper processes
     pub tor: UsageAgg,
@@ -86,6 +87,8 @@ pub(crate) fn protected_pids() -> Vec<u32> {
     pids.extend(mihomo_pids());
     pids.extend(mieru_pids());
     pids.extend(mieru_tun2proxy_pids());
+    pids.extend(aether_pids());
+    pids.extend(aether_tun2proxy_pids());
     pids.extend(tor_pids());
     pids.extend(pidof("byedpi"));
     pids.sort_unstable();
@@ -161,12 +164,15 @@ fn collect_status_inner(wanted: Option<&[&str]>) -> Result<StatusReport> {
     let mihomo_pids = if want("mihomo") { mihomo_pids() } else { Vec::new() };
     let mihomo_tun2socks_pids = if want("tun2proxy") { mihomo_tun2socks_pids() } else { Vec::new() };
     let mieru_pids = if want("mieru") { mieru_pids() } else { Vec::new() };
+    let aether_pids = if want("aether") { aether_pids() } else { Vec::new() };
     let tgwsproxy_pids = if want("tgwsproxy") { pidof("tg-ws-proxy") } else { Vec::new() };
     let mieru_tun2proxy_pids = if want("tun2proxy") { mieru_tun2proxy_pids() } else { Vec::new() };
+    let aether_tun2proxy_pids = if want("tun2proxy") { aether_tun2proxy_pids() } else { Vec::new() };
     let mut tun2proxy_pids = Vec::new();
     tun2proxy_pids.extend(tun2socks_pids.iter().copied());
     tun2proxy_pids.extend(mihomo_tun2socks_pids.iter().copied());
     tun2proxy_pids.extend(mieru_tun2proxy_pids.iter().copied());
+    tun2proxy_pids.extend(aether_tun2proxy_pids.iter().copied());
     tun2proxy_pids.sort_unstable();
     tun2proxy_pids.dedup();
     let tor_pids = if want("tor") { tor_pids() } else { Vec::new() };
@@ -209,6 +215,7 @@ fn collect_status_inner(wanted: Option<&[&str]>) -> Result<StatusReport> {
         &tun2socks_pids,
         &mihomo_pids,
         &mieru_pids,
+        &aether_pids,
         &tgwsproxy_pids,
         &tun2proxy_pids,
         &tor_pids,
@@ -242,6 +249,7 @@ fn collect_status_inner(wanted: Option<&[&str]>) -> Result<StatusReport> {
         tun2socks: agg_from_map(&tun2socks_pids, &usage),
         mihomo: agg_from_map(&mihomo_pids, &usage),
         mieru: agg_from_map(&mieru_pids, &usage),
+        aether: agg_from_map(&aether_pids, &usage),
         tgwsproxy: agg_from_map(&tgwsproxy_pids, &usage),
         tun2proxy: agg_from_map(&tun2proxy_pids, &usage),
         tor: agg_from_map(&tor_pids, &usage),
@@ -481,6 +489,20 @@ fn myprogram_t2s_pids() -> Vec<u32> {
 
 fn openvpn_pids() -> Vec<u32> {
     crate::programs::openvpn::main_pids_exact()
+        .into_iter()
+        .filter_map(|p| u32::try_from(p).ok())
+        .collect()
+}
+
+fn aether_pids() -> Vec<u32> {
+    crate::programs::aether::main_pids_exact()
+        .into_iter()
+        .filter_map(|p| u32::try_from(p).ok())
+        .collect()
+}
+
+fn aether_tun2proxy_pids() -> Vec<u32> {
+    crate::programs::aether::tun2proxy_pids_exact()
         .into_iter()
         .filter_map(|p| u32::try_from(p).ok())
         .collect()

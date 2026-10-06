@@ -175,6 +175,7 @@ pub fn collect_used_ports_for_conflict_check_excluding_programs(
     if !exclude_mieru {
         used.extend(collect_defined_mieru_ports());
     }
+    used.extend(collect_defined_aether_ports());
     used.extend(collect_defined_tgwsproxy_ports());
     Ok(used)
 }
@@ -389,6 +390,7 @@ pub fn normalize_ports() -> Result<()> {
     used.extend(collect_defined_myprogram_ports());
     used.extend(collect_defined_mihomo_ports());
     used.extend(collect_defined_mieru_ports());
+    used.extend(collect_defined_aether_ports());
 
     used.extend(collect_defined_tgwsproxy_ports());
 
@@ -494,6 +496,25 @@ fn collect_defined_myproxy_ports() -> BTreeSet<u16> {
                     if let Some(port) = v.get(key).and_then(|x| x.as_u64()).and_then(|x| u16::try_from(x).ok()) {
                         if port != 0 { used.insert(port); }
                     }
+                }
+            }
+        }
+    }
+    used
+}
+
+fn collect_defined_aether_ports() -> BTreeSet<u16> {
+    let mut used = BTreeSet::new();
+    let root = working_program_dir("aether").join("profile");
+    if let Ok(rd) = fs::read_dir(&root) {
+        for ent in rd.flatten() {
+            let profile_dir = ent.path();
+            if !profile_dir.is_dir() { continue; }
+            if profile_dir.file_name().and_then(|s| s.to_str()).map(|s| s.starts_with('.')).unwrap_or(false) { continue; }
+            let setting_path = profile_dir.join("setting.json");
+            if let Ok(v) = read_json_value(&setting_path) {
+                if let Some(port) = v.get("socks5_port").and_then(|x| x.as_u64()).and_then(|x| u16::try_from(x).ok()) {
+                    if port != 0 { used.insert(port); }
                 }
             }
         }

@@ -313,6 +313,7 @@ fn normalize_hotspot_vpn_program(raw: &str) -> String {
         "amneziawg" | "amnezia-wg" | "amnezia_wg" | "awg" => "amneziawg".to_string(),
         "mihomo" => "mihomo".to_string(),
         "mieru" => "mieru".to_string(),
+        "aether" => "aether".to_string(),
         _ => String::new(),
     }
 }
@@ -412,6 +413,7 @@ ClientTransportPlugin meek_lite,obfs4,snowflake,webtunnel exec /data/adb/modules
         ("myvpn", "active.json", PROFILES_DEFAULT_JSON),
         ("mihomo", "active.json", PROFILES_DEFAULT_JSON),
         ("mieru", "active.json", PROFILES_DEFAULT_JSON),
+        ("aether", "active.json", PROFILES_DEFAULT_JSON),
         ("dnscrypt", "active.json", ENABLED_FALSE_JSON),
         ("operaproxy", "active.json", ENABLED_FALSE_JSON),
         ("tgwsproxy", "active.json", ENABLED_FALSE_JSON),
@@ -437,7 +439,7 @@ ClientTransportPlugin meek_lite,obfs4,snowflake,webtunnel exec /data/adb/modules
         // Create the root eagerly so the Android app sees the same minimal layout after daemon start
         // even before a first profile is created through the API.
         match program {
-            "openvpn" | "amneziawg" | "tun2socks" | "myvpn" | "mihomo" | "mieru" | "hysteria2" => {
+            "openvpn" | "amneziawg" | "tun2socks" | "myvpn" | "mihomo" | "mieru" | "hysteria2" | "aether" => {
                 fs::create_dir_all(root.join("profile"))
                     .with_context(|| format!("mkdir {}", root.join("profile").display()))?;
             }

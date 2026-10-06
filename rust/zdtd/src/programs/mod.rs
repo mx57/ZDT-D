@@ -21,4 +21,5 @@ pub mod myvpn;
 pub mod mihomo;
 pub mod mihomo_subscription;
 pub mod mieru;
+pub mod aether;
 pub mod tgwsproxy;

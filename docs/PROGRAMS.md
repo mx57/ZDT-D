@@ -476,6 +476,29 @@ Upstream:
 
 - https://github.com/enfein/mieru
 
+### Aether
+
+Aether is a Rust-based censorship bypass client and kernel supporting MASQUE (HTTP/2 over TLS, HTTP/3 over QUIC), TLS ClientHello fragmentation (`--noize`), Cloudflare WARP data-plane endpoint scanning (`--scan`), socket marking (`--mark`), and Tor integration (`--tor`).
+
+ZDT-D uses Aether as a profile-based local engine. In VPN mode, selected apps are bound via Android `netd` to a TUN interface created by `tun2socks` and forwarded to Aether's SOCKS5 inbound.
+
+Routing model:
+
+```text
+selected UID -> Android netd -> tun2socks TUN -> socks5://127.0.0.1:<aether port> -> Aether
+```
+
+Purpose:
+
+- MASQUE HTTP/2 over TLS tunnel to bypass UDP/443 blocks and signatures;
+- TLS ClientHello record fragmentation (`--noize firewall`) against DPI/ТСПУ SNI filtering;
+- WARP endpoint scanning with data-plane validation (`--scan turbo/balanced`);
+- Tor encapsulation inside MASQUE туннеля (`--tor`).
+
+Upstream:
+
+- https://github.com/CluvexStudio/Aether
+
 ## VPN / TUN integrations
 
 ### OpenVPN

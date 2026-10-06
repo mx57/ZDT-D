@@ -188,6 +188,7 @@ fun StatsScreen(
         add(ProcRow("hysteria2", "hysteria2", r?.hysteria2 ?: ApiModels.ProcAgg(), "hysteria2", configuredEnabled = enabled("hysteria2")))
         add(ProcRow("mihomo", "Mihomo", r?.mihomo ?: ApiModels.ProcAgg(), "mihomo", configuredEnabled = enabled("mihomo")))
         add(ProcRow("mieru", "mieru", r?.mieru ?: ApiModels.ProcAgg(), "mieru", configuredEnabled = enabled("mieru")))
+        add(ProcRow("aether", "Aether", r?.aether ?: ApiModels.ProcAgg(), "aether", configuredEnabled = enabled("aether")))
         add(ProcRow("openvpn", "OpenVPN", r?.openVpn ?: ApiModels.ProcAgg(), "openvpn", configuredEnabled = enabled("openvpn")))
         add(ProcRow("opera-proxy", "opera-proxy", r?.opera?.opera ?: ApiModels.ProcAgg(), "operaproxy", configuredEnabled = enabled("operaproxy")))
         add(ProcRow("opera-byedpi", "opera-ByeDPI", r?.opera?.byedpi ?: ApiModels.ProcAgg(), "operaproxy", "byedpi", configuredEnabled = enabled("operaproxy")))

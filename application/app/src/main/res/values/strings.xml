@@ -1423,8 +1423,10 @@ Protection does not work in hotspot mode. If hotspot is enabled and sing-box is 
 
     <!-- Mihomo profiles -->
     <string name="apps_list_desc_mieru">mieru proxy client routed through TUN + tun2proxy</string>
+    <string name="apps_list_desc_aether">Aether MASQUE/HTTP2/Noise engine routed through TUN + tun2proxy</string>
     <string name="apps_list_desc_mihomo">Clash-compatible Mihomo YAML routed through TUN + tun2socks</string>
     <string name="apps_conflict_program_mieru">mieru</string>
+    <string name="apps_conflict_program_aether">Aether</string>
     <string name="apps_conflict_program_mihomo">Mihomo</string>
     <string name="mihomo_program_hint">Mihomo uses Clash-compatible YAML and ZDT-D routes selected apps through TUN + tun2socks.</string>
     <string name="mihomo_status_profiles">Mihomo profiles: %1$d / %2$d</string>
