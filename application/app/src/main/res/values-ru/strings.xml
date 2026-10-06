@@ -1423,8 +1423,10 @@ APatch: 10700+</string>
 
     <!-- Mihomo profiles -->
     <string name="apps_list_desc_mieru">mieru proxy-клиент через TUN + tun2proxy</string>
+    <string name="apps_list_desc_aether">Движок Aether (MASQUE/HTTP2/TLS Noise) через TUN + tun2proxy</string>
     <string name="apps_list_desc_mihomo">Mihomo YAML, совместимый с Clash, через TUN + tun2socks</string>
     <string name="apps_conflict_program_mieru">mieru</string>
+    <string name="apps_conflict_program_aether">Aether</string>
     <string name="apps_conflict_program_mihomo">Mihomo</string>
     <string name="mihomo_program_hint">Mihomo использует Clash-compatible YAML, а ZDT-D направляет выбранные приложения через TUN + tun2socks.</string>
     <string name="mihomo_status_profiles">Профили Mihomo: %1$d / %2$d</string>

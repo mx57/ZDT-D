@@ -24,4 +24,4 @@ sealed class AppsRoute {
 }
 
 
-internal fun isProfileProgramType(type: String?): Boolean = type == "profiles" || type == "singbox_profiles" || type == "hysteria2_profiles" || type == "wireproxy_profiles" || type == "myproxy_profiles" || type == "myprogram_profiles" || type == "openvpn_profiles" || type == "tun2socks_profiles" || type == "myvpn_profiles" || type == "mihomo_profiles" || type == "mieru_profiles" || type == "amneziawg_profiles"
+internal fun isProfileProgramType(type: String?): Boolean = type == "profiles" || type == "singbox_profiles" || type == "hysteria2_profiles" || type == "wireproxy_profiles" || type == "myproxy_profiles" || type == "myprogram_profiles" || type == "openvpn_profiles" || type == "tun2socks_profiles" || type == "myvpn_profiles" || type == "mihomo_profiles" || type == "mieru_profiles" || type == "aether_profiles" || type == "amneziawg_profiles"

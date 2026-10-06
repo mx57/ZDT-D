@@ -91,7 +91,7 @@ class ApiClient(
    */
   fun createProfile(programId: String, profile: String? = null): Boolean {
     val p = profile?.trim().orEmpty()
-    if (programId == "myproxy" || programId == "myprogram" || programId == "openvpn" || programId == "tun2socks" || programId == "myvpn" || programId == "mihomo" || programId == "mieru" || programId == "hysteria2" || programId == "amneziawg" || programId == "sing-box") {
+    if (programId == "myproxy" || programId == "myprogram" || programId == "openvpn" || programId == "tun2socks" || programId == "myvpn" || programId == "mihomo" || programId == "mieru" || programId == "aether" || programId == "hysteria2" || programId == "amneziawg" || programId == "sing-box") {
       val body = JSONObject()
       if (p.isNotEmpty()) body.put("name", p)
       return requestOk("POST", "/api/programs/${enc(programId)}/profiles", body)

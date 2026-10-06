@@ -219,6 +219,14 @@ fun AppsHost(
           topContentPadding = topContentPadding,
           bottomContentPadding = bottomContentPadding,
         )
+        "aether" -> AetherProfileScreen(
+          programs = programs,
+          profile = r.profile,
+          actions = actions,
+          snackHost = snackHost,
+          topContentPadding = topContentPadding,
+          bottomContentPadding = bottomContentPadding,
+        )
         "openvpn" -> OpenVpnProgramScreen(
           programs = programs,
           onOpenProfile = onOpenProfile,
