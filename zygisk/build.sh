@@ -170,8 +170,8 @@ if command -v file >/dev/null 2>&1; then
 fi
 
 if command -v readelf >/dev/null 2>&1; then
-  readelf -Ws "$OUT_SO" | grep -q ' zygisk_module_entry$' || fail "zygisk_module_entry export not found in $OUT_SO"
-  if readelf -d "$OUT_SO" | grep -E 'NEEDED.*(libc\+\+|libstdc\+\+)' >/dev/null 2>&1; then
+  readelf -Ws "$OUT_SO" | tr -d '\r' | grep -E '[[:space:]]zygisk_module_entry' >/dev/null || fail "zygisk_module_entry export not found in $OUT_SO"
+  if readelf -d "$OUT_SO" | tr -d '\r' | grep -E 'NEEDED.*(libc\+\+|libstdc\+\+)' >/dev/null 2>&1; then
     fail "Zygisk library must not depend on C++ STL runtime"
   fi
 else

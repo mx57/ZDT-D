@@ -49,6 +49,9 @@ def bundledNfqwsTesterAssets = [
 ]
 def bundledModuleSha = file("$generatedRootAssetsDir/metadata/zdt_module.sha256")
 def bundledModuleCache = file("$generatedRootAssetsDir/metadata/zdt_module.cache")
+def rustTargetRelease = file('../../rust/target/release')
+def rustTargetAarch64 = file('../../rust/target/aarch64-linux-android/release')
+def rustTargetX86 = file('../../rust/target/x86_64-unknown-linux-gnu/release')
 def onlineModuleAssetName = 'zdt_module.zip'
 def technicalAssetsBaseUrl = 'https://github.com/GAME-OVER-op/ZDT-D/releases/download/Technical_Assets'
 
@@ -254,6 +257,36 @@ tasks.register('prepareZdtRootAssets') {
       println("[ZDT-D] synced module.prop from root: ${rootModuleProp}")
     }
 
+    def findRustBin = { String binName ->
+      def candidates = [
+          new File(rustTargetRelease, binName),
+          new File(rustTargetAarch64, binName),
+          new File(rustTargetX86, binName)
+      ]
+      return candidates.find { it.exists() }
+    }
+
+    def targetDir = generatedRootAssetsDir
+    def dpiDetectorBin = findRustBin('dpi-detector')
+    if (dpiDetectorBin != null) {
+      def target64 = new File(targetDir, "dpi-detector/arm64-v8a/dpi-detector")
+      def target32 = new File(targetDir, "dpi-detector/armeabi-v7a/dpi-detector")
+      target64.parentFile.mkdirs()
+      target32.parentFile.mkdirs()
+      java.nio.file.Files.copy(dpiDetectorBin.toPath(), target64.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+      java.nio.file.Files.copy(dpiDetectorBin.toPath(), target32.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    def nfqwsTesterBin = findRustBin('nfqws-tester')
+    if (nfqwsTesterBin != null) {
+      def target64 = new File(targetDir, "nfqws-tester/arm64-v8a/nfqws_tester")
+      def target32 = new File(targetDir, "nfqws-tester/armeabi-v7a/nfqws_tester")
+      target64.parentFile.mkdirs()
+      target32.parentFile.mkdirs()
+      java.nio.file.Files.copy(nfqwsTesterBin.toPath(), target64.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+      java.nio.file.Files.copy(nfqwsTesterBin.toPath(), target32.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+    }
+
     bundledModuleSha.parentFile.mkdirs()
     def moduleSha = sha256Hex(zdtModuleZip)
     bundledModuleSha.text = "${moduleSha}  zdt_module.zip\n"
@@ -283,8 +316,8 @@ tasks.register('ensureZdtModuleZip') {
 tasks.register('verifyBundledHelperAssets') {
   dependsOn('prepareZdtRootAssets')
 
-  bundledDpiDetectorAssets.each { inputs.file(it).withPathSensitivity(PathSensitivity.RELATIVE) }
-  bundledNfqwsTesterAssets.each { inputs.file(it).withPathSensitivity(PathSensitivity.RELATIVE) }
+  bundledDpiDetectorAssets.each { inputs.file(it).optional().withPathSensitivity(PathSensitivity.RELATIVE) }
+  bundledNfqwsTesterAssets.each { inputs.file(it).optional().withPathSensitivity(PathSensitivity.RELATIVE) }
   inputs.file(bundledModuleSha).withPathSensitivity(PathSensitivity.RELATIVE)
   inputs.file(bundledModuleCache).withPathSensitivity(PathSensitivity.RELATIVE)
 

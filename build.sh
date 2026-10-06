@@ -1296,7 +1296,7 @@ build_zygisk_module() {
     [[ -f "$out_so" ]] || fail "ZDT_SKIP_ZYGISK_BUILD=1, но готовый Zygisk файл не найден: $out_so"
   else
     [[ -x "$ZYGISK_DIR/build.sh" ]] || fail "Не найден скрипт сборки Zygisk: $ZYGISK_DIR/build.sh"
-    ANDROID_HOME="$ANDROID_HOME" ANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" ANDROID_API_LEVEL=24 \
+    ANDROID_HOME="$ANDROID_HOME" ANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-$ANDROID_SDK_ROOT/ndk/27.2.12479018}" ANDROID_API_LEVEL=24 \
       "$ZYGISK_DIR/build.sh" "$out_so"
   fi
   [[ -s "$out_so" ]] || fail "Zygisk arm64-v8a.so не создан: $out_so"
@@ -1304,8 +1304,8 @@ build_zygisk_module() {
     file "$out_so" | grep -q 'ARM aarch64' || fail "Zygisk файл не является arm64 ELF: $out_so"
   fi
   if command -v readelf >/dev/null 2>&1; then
-    readelf -Ws "$out_so" | grep -q ' zygisk_module_entry$' || fail "Zygisk export zygisk_module_entry не найден: $out_so"
-    if readelf -d "$out_so" | grep -E 'NEEDED.*(libc\+\+|libstdc\+\+)' >/dev/null 2>&1; then
+    readelf -Ws "$out_so" | tr -d '\r' | grep -E '[[:space:]]zygisk_module_entry' >/dev/null || fail "Zygisk export zygisk_module_entry не найден: $out_so"
+    if readelf -d "$out_so" | tr -d '\r' | grep -E 'NEEDED.*(libc\+\+|libstdc\+\+)' >/dev/null 2>&1; then
       fail 'Zygisk библиотека не должна зависеть от C++ STL runtime'
     fi
   fi
@@ -1347,14 +1347,14 @@ package_module_zip() {
 
 validate_module_zip() {
   [[ -f "$MODULE_ZIP" ]] || fail "Не найден модульный zip: $MODULE_ZIP"
-  unzip -l "$MODULE_ZIP" | grep -q 'zygisk/arm64-v8a.so' || fail 'В module zip отсутствует zygisk/arm64-v8a.so'
-  unzip -l "$MODULE_ZIP" | grep -q 'verify.sh' || fail 'В module zip отсутствует verify.sh'
-  unzip -l "$MODULE_ZIP" | grep -q 'verify_sum/zygisk/arm64-v8a.so.sha256' || fail 'В module zip отсутствует verify_sum/zygisk/arm64-v8a.so.sha256'
-  unzip -l "$MODULE_ZIP" | grep -q 'verify_sum/bin/zdtd.sha256' || fail 'В module zip отсутствует verify_sum/bin/zdtd.sha256'
-  if unzip -l "$MODULE_ZIP" | grep -q 'bin/dpi-detector'; then
+  unzip -l "$MODULE_ZIP" | grep 'zygisk/arm64-v8a.so' >/dev/null || fail 'В module zip отсутствует zygisk/arm64-v8a.so'
+  unzip -l "$MODULE_ZIP" | grep 'verify.sh' >/dev/null || fail 'В module zip отсутствует verify.sh'
+  unzip -l "$MODULE_ZIP" | grep 'verify_sum/zygisk/arm64-v8a.so.sha256' >/dev/null || fail 'В module zip отсутствует verify_sum/zygisk/arm64-v8a.so.sha256'
+  unzip -l "$MODULE_ZIP" | grep 'verify_sum/bin/zdtd.sha256' >/dev/null || fail 'В module zip отсутствует verify_sum/bin/zdtd.sha256'
+  if unzip -l "$MODULE_ZIP" | grep 'bin/dpi-detector' >/dev/null; then
     fail 'dpi-detector не должен попадать в module zip: он упаковывается в APK assets'
   fi
-  if unzip -l "$MODULE_ZIP" | grep -qE '(^|/)(unloaded|\.gitkeep)$'; then
+  if unzip -l "$MODULE_ZIP" | grep -E '(^|/)(unloaded|\.gitkeep)$' >/dev/null; then
     fail 'В module zip попал служебный файл unloaded или .gitkeep'
   fi
 }
@@ -1420,6 +1420,23 @@ prepare_android_inputs() {
   ensure_gradle_ready
   patch_paths
   write_signing_properties
+  mkdir -p "$OUT_DIR/module"
+  cp -f "$ROOT_DIR/module.prop" "$OUT_DIR/module/module.prop"
+
+  local triple="$(resolve_target)"
+  local cargo_out="$(cargo_out_dir "$triple" "$CARGO_PROFILE")"
+
+  mkdir -p "$DPI_DETECTOR_APK_ASSET_DIR" "$NFQWS_TESTER_APK_ASSET_DIR"
+  mkdir -p "$APP_MODULE_DIR/build/generated/zdt-root-assets/main/dpi-detector/armeabi-v7a"
+  mkdir -p "$APP_MODULE_DIR/build/generated/zdt-root-assets/main/nfqws-tester/armeabi-v7a"
+
+  [[ -f "$cargo_out/dpi-detector" ]] || fail "dpi-detector not found in $cargo_out"
+  [[ -f "$cargo_out/nfqws-tester" ]] || fail "nfqws-tester not found in $cargo_out"
+
+  cp -f "$cargo_out/dpi-detector" "$DPI_DETECTOR_APK_ASSET"
+  cp -f "$cargo_out/dpi-detector" "$APP_MODULE_DIR/build/generated/zdt-root-assets/main/dpi-detector/armeabi-v7a/dpi-detector"
+  cp -f "$cargo_out/nfqws-tester" "$NFQWS_TESTER_APK_ASSET"
+  cp -f "$cargo_out/nfqws-tester" "$APP_MODULE_DIR/build/generated/zdt-root-assets/main/nfqws-tester/armeabi-v7a/nfqws_tester"
 }
 
 validate_apk_artifacts() {

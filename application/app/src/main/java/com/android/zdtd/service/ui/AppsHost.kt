@@ -221,7 +221,7 @@ fun AppsHost(
         )
         "aether" -> AetherProfileScreen(
           programs = programs,
-          profile = r.profile,
+          profile = "main",
           actions = actions,
           snackHost = snackHost,
           topContentPadding = topContentPadding,
@@ -360,6 +360,14 @@ fun AppsHost(
           bottomContentPadding = bottomContentPadding,
         )
         "mieru" -> MieruProfileScreen(
+          programs = programs,
+          profile = r.profile,
+          actions = actions,
+          snackHost = snackHost,
+          topContentPadding = topContentPadding,
+          bottomContentPadding = bottomContentPadding,
+        )
+        "aether" -> AetherProfileScreen(
           programs = programs,
           profile = r.profile,
           actions = actions,
